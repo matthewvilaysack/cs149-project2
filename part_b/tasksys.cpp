@@ -235,6 +235,6 @@ void TaskSystemParallelThreadPoolSleeping::sync() {
             return finish;
         });
 	// }
-            std::cout << "Assigned work: "  << assigned_work << std::endl;
-        std::cout << "totla completed: "  << total_completed << std::endl;
+            // std::cout << "Assigned work: "  << assigned_work << std::endl;
+        // std::cout << "totla completed: "  << total_completed << std::endl;
 }
