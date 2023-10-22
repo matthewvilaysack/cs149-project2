@@ -2,32 +2,32 @@
 #define _TASKSYS_H
 
 #include "itasksys.h"
+#include <condition_variable>
+#include <mutex>
 #include <thread>
 #include <atomic>
-#include <queue>
-#include <mutex>
-#include <condition_variable>
 #include <set>
-#include <utility>
+#include <map>
+#include <algorithm>
+#include <iterator>
 #include <iostream>
+#include <queue>
+
+
 /*
  * TaskSystemSerial: This class is the student's implementation of a
  * serial task execution engine.  See definition of ITaskSystem in
  * itasksys.h for documentation of the ITaskSystem interface.
  */
-class TaskSystemSerial : public ITaskSystem {
-public:
-	explicit TaskSystemSerial(int num_threads);
-
-	~TaskSystemSerial() override;
-
-	const char *name() override;
-
-	void run(IRunnable *runnable, int num_total_tasks) override;
-
-	TaskID runAsyncWithDeps(IRunnable *runnable, int num_total_tasks, const std::vector<TaskID> &deps) override;
-
-	void sync() override;
+class TaskSystemSerial: public ITaskSystem {
+    public:
+        TaskSystemSerial(int num_threads);
+        ~TaskSystemSerial();
+        const char* name();
+        void run(IRunnable* runnable, int num_total_tasks);
+        TaskID runAsyncWithDeps(IRunnable* runnable, int num_total_tasks,
+                                const std::vector<TaskID>& deps);
+        void sync();
 };
 
 /*
@@ -36,19 +36,15 @@ public:
  * call.  See definition of ITaskSystem in itasksys.h for documentation
  * of the ITaskSystem interface.
  */
-class TaskSystemParallelSpawn : public ITaskSystem {
-public:
-	explicit TaskSystemParallelSpawn(int num_threads);
-
-	~TaskSystemParallelSpawn() override;
-
-	const char *name() override;
-
-	void run(IRunnable *runnable, int num_total_tasks) override;
-
-	TaskID runAsyncWithDeps(IRunnable *runnable, int num_total_tasks, const std::vector<TaskID> &deps) override;
-
-	void sync() override;
+class TaskSystemParallelSpawn: public ITaskSystem {
+    public:
+        TaskSystemParallelSpawn(int num_threads);
+        ~TaskSystemParallelSpawn();
+        const char* name();
+        void run(IRunnable* runnable, int num_total_tasks);
+        TaskID runAsyncWithDeps(IRunnable* runnable, int num_total_tasks,
+                                const std::vector<TaskID>& deps);
+        void sync();
 };
 
 /*
@@ -57,19 +53,15 @@ public:
  * thread pool. See definition of ITaskSystem in itasksys.h for
  * documentation of the ITaskSystem interface.
  */
-class TaskSystemParallelThreadPoolSpinning : public ITaskSystem {
-public:
-	explicit TaskSystemParallelThreadPoolSpinning(int num_threads);
-
-	~TaskSystemParallelThreadPoolSpinning() override;
-
-	const char *name() override;
-
-	void run(IRunnable *runnable, int num_total_tasks) override;
-
-	TaskID runAsyncWithDeps(IRunnable *runnable, int num_total_tasks, const std::vector<TaskID> &deps) override;
-
-	void sync() override;
+class TaskSystemParallelThreadPoolSpinning: public ITaskSystem {
+    public:
+        TaskSystemParallelThreadPoolSpinning(int num_threads);
+        ~TaskSystemParallelThreadPoolSpinning();
+        const char* name();
+        void run(IRunnable* runnable, int num_total_tasks);
+        TaskID runAsyncWithDeps(IRunnable* runnable, int num_total_tasks,
+                                const std::vector<TaskID>& deps);
+        void sync();
 };
 
 /*
@@ -78,76 +70,71 @@ public:
  * a thread pool. See definition of ITaskSystem in
  * itasksys.h for documentation of the ITaskSystem interface.
  */
-// Task group with dependencies!
-struct TaskGroup {
-	IRunnable *runnable;
-	int num_total_tasks;
-	std::atomic<int> tasks_remain;
-	int group_id;
-	int num_dependencies;
-	int dependencies_completed;
-	std::set<TaskID> depending;
-
-	TaskGroup(int group_id, IRunnable *runnable, int num_total_tasks, const std::vector<TaskID> &deps) {
-		this->group_id = group_id;
-		this->runnable = runnable;
-		this->num_dependencies = 0;  // Initialize to 0.
-		this->dependencies_completed = 0;
-		this->num_total_tasks = num_total_tasks;
-		this->tasks_remain = num_total_tasks;
-		this->depending = {};
-		for (auto dep: deps) {
-			this->depending.insert(dep); 
-		}
-	}
-
-};
-
-struct TaskGroupComparator {
-	// lowest deps come first
-    bool operator()(const TaskGroup* a, const TaskGroup* b) const {
-        return a->depending.size() < b->depending.size(); // lowest dependencies come first
-    }
-};
-struct RunnableTask {
-	TaskGroup *belong_to;
-	int id;
-
-	RunnableTask(TaskGroup *belong_to, int id) {
-		this->belong_to = belong_to;
-		this->id = id;
-	}
-};
-
 class TaskSystemParallelThreadPoolSleeping : public ITaskSystem {
 public:
-	explicit TaskSystemParallelThreadPoolSleeping(int num_threads);
-
-	~TaskSystemParallelThreadPoolSleeping() override;
-
-	const char *name() override;
-
-	void run(IRunnable *runnable, int num_total_tasks) override;
-
-	TaskID runAsyncWithDeps(IRunnable *runnable, int num_total_tasks, const std::vector<TaskID> &deps) override;
-	TaskGroup* findTaskGroupById(TaskID id);
-	void sync() override;
+  TaskSystemParallelThreadPoolSleeping(int num_threads);
+  ~TaskSystemParallelThreadPoolSleeping();
+  const char* name();
+  void run(IRunnable *runnable, int num_total_tasks);
+  TaskID runAsyncWithDeps(IRunnable *runnable, int num_total_tasks,
+                          const std::vector<TaskID> &deps);
+  void sync();
 
 private:
-	std::vector<std::thread> threads;
-	std::mutex counter_mutex;
-	std::condition_variable counterCV;
-	std::mutex task_mutex;
-	std::condition_variable workerCV;
-	std::queue<RunnableTask *> task_q;
-	std::set<TaskGroup *> task_group_set;
-    std::priority_queue<TaskGroup*, std::vector<TaskGroup*>, TaskGroupComparator> task_group_queue;
-	bool done;
-	int num_group;
-	bool finish;
-	void worker_thread();
-	int assigned_work;
-	int total_completed;
+  struct TaskGroup {
+    TaskID task_id;
+    IRunnable* runnable;
+    int num_tasks;
+    int num_started;
+    int num_completed;
+    std::set<TaskID>* prior_deps;
+    TaskGroup(TaskID task_id, IRunnable* runnable,int num_tasks,int num_started,int num_completed, std::set<TaskID>* prior_deps) {
+      this->task_id = task_id;
+      this->runnable = runnable;
+      this->num_tasks = num_tasks;
+      this->num_started = num_started;
+      this->num_completed = num_completed;
+      this->prior_deps = prior_deps;
+    }
+    ~TaskGroup() {
+      delete prior_deps;
+    }
+  };
+  // 'global'
+  int total_threads;
+  // Terminating Condition
+  bool done;
+
+  // Main Thread Function
+  void main_thread_working();
+
+  // Run
+  std::vector<TaskID>* run_init_no_dep;
+
+  // Main Function Variables;
+  int task_group_id_tracker_;
+  std::condition_variable* mainCV;
+  std::thread main_thread;
+  std::queue<TaskGroup*>* parallel_tasks_to_run;
+  std::map<TaskID, std::vector<TaskGroup*>*>* blocked_tasks_map;
+  std::set<TaskID>* completed_task_groups_set;
+  std::mutex* main_mutex;
+  TaskGroup* curr_task_group;
+  bool task_group_finished;
+  std::vector<TaskGroup*>* completed_task_groups_vec;
+
+  // Worker Thread Function
+  void worker_thread();
+  // Worker Thread Variables
+  std::thread* workers;
+  std::condition_variable* workerCV;
+  std::mutex* worker_mutex;
+
+  // Sync Variables
+  std::condition_variable* syncCV;
+  bool can_sync;
+
+
 };
 
 #endif

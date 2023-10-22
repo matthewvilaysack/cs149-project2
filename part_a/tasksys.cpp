@@ -57,21 +57,6 @@ TaskSystemParallelSpawn::TaskSystemParallelSpawn(int num_threads): ITaskSystem(n
     this->total_threads = num_threads;
 }
 
-// void TaskSystemParallelSpawn::parallelSpawnHelper() {
-//     while (1) {
-//         int task_id;
-//         m_.lock();
-//         task_id = total_work - tasks_remain;
-//         task_id_num = total_work - tasks_remain;
-//         tasks_remain--;
-//         m_.unlock();
-//         if (task_id < 0 || task_id == total_work) break;
-//         std::cout << task_id << std::endl;
-//         std::cout << tasks_remain << std::endl;
-//         runnable->runTask(task_id, total_work);
-//     }
-// }
-
 TaskSystemParallelSpawn::~TaskSystemParallelSpawn() {}
 void TaskSystemParallelSpawn::run(IRunnable* runnable, int num_total_tasks) {
     // Create thread objects that do not yet represent a running thread
@@ -221,6 +206,9 @@ void TaskSystemParallelThreadPoolSleeping::sleeping_thread() {
         // Signal waiting thread if there are no more tasks
         if (tasks_remain == 0) {
             cv_count_work.notify_one();
+        }
+        else {
+            cv_sleep_q.notify_one();
         }
     }
 }
